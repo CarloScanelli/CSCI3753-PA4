@@ -408,8 +408,16 @@ static struct fuse_operations xmp_oper = {
 #endif
 };
 
+// Need to add an additional argument to specify which directory to mirror
 int main(int argc, char *argv[])
 {
 	umask(0);
+
+	//Check number of arguments
+	if (argc < 4){
+		printf("Not enough arguments. Correct input format is: ./pa4-encfs <Key Phrase> <Mirror Directory> <Mount Point>\n");
+		return 1;
+	}
+
 	return fuse_main(argc, argv, &xmp_oper, NULL);
 }
