@@ -46,6 +46,9 @@ xattr-util: xattr-util.o
 aes-crypt-util: aes-crypt-util.o aes-crypt.o
 	$(CC) $(LFLAGS) $^ -o $@ $(LLIBSOPENSSL)
 
+pa4-encfs.o: pa4-encfs.c aes-crypt.h
+	$(CC) $(CFLAGS) $(CFLAGSFUSE) $<
+
 fusehello.o: fusehello.c
 	$(CC) $(CFLAGS) $(CFLAGSFUSE) $<
 
