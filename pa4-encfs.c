@@ -25,6 +25,8 @@
 #define FUSE_USE_VERSION 28
 #define HAVE_SETXATTR
 #define PATH_MAX 4096
+#define ENCRYPT 1
+#define DECRYPT 0
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -73,6 +75,72 @@ static void get_path(char* fpath[PATH_MAX], const char *path)
 {
     strcpy((char*)fpath, ENCFS_DATA->mirror_dir);
     strncat((char*)fpath, path, PATH_MAX); //paths that are too long will break here
+}
+
+/* 3a: Add support for encryption */
+int encfs_encrypt(char file[], char* fpath)
+{
+	FILE* inFile = NULL;
+	FILE* outFile = NULL;
+	/* Open Files */
+	inFile = fopen(file, "rb");
+	if(!inFile){
+		perror("infile fopen error");
+		return EXIT_FAILURE;
+    }
+    outFile = fopen(fpath, "wb+");
+    if(!outFile){
+		perror("outfile fopen error");
+		return EXIT_FAILURE;
+    }
+
+    /* Perform do_crpt action (encrypt, decrypt, copy) */
+    if(!do_crypt(inFile, outFile, ENCRYPT, ENCFS_DATA->phrase)){
+	fprintf(stderr, "do_crypt failed\n");
+    }
+
+    /* Cleanup */
+    if(fclose(outFile)){
+        perror("outFile fclose error\n");
+    }
+    if(fclose(inFile)){
+	perror("inFile fclose error\n");
+    }
+
+    return 0;
+}
+
+/* 3b: Add support for decryption */
+int encfs_decrypt(char file[], char* fpath)
+{
+	FILE* inFile = NULL;
+	FILE* outFile = NULL;
+	/* Open Files */
+	inFile = fopen(fpath, "rb");
+	if(!inFile){
+		perror("infile fopen error");
+		return EXIT_FAILURE;
+    }
+    outFile = fopen(file, "wb+");
+    if(!outFile){
+		perror("outfile fopen error");
+		return EXIT_FAILURE;
+    }
+
+    /* Perform do_crpt action (encrypt, decrypt, copy) */
+    if(!do_crypt(inFile, outFile, DECRYPT, ENCFS_DATA->phrase)){
+	fprintf(stderr, "do_crypt failed\n");
+    }
+
+    /* Cleanup */
+    if(fclose(outFile)){
+        perror("outFile fclose error\n");
+    }
+    if(fclose(inFile)){
+	perror("inFile fclose error\n");
+    }
+
+    return 0;
 }
 
 /* Similar to xattr.util.c */
