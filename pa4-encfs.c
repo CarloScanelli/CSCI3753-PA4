@@ -35,6 +35,15 @@
 #define _XOPEN_SOURCE 500
 #endif
 
+/* Add namespace defintion for older kernels. Normally included in linux/xattr.h */
+#ifndef XATTR_USER_PREFIX
+#define XATTR_USER_PREFIX "user."
+#define XATTR_USER_PREFIX_LEN (sizeof (XATTR_USER_PREFIX) - 1)
+#define XATTR_NAME "pa4-encfs.encrypted"
+#define XATTR_TRUEFLAG "true"
+#define XATTR_FALSEFLAG "false"
+#endif
+
 #include <fuse.h>
 #include <stdio.h>
 #include <string.h>
@@ -64,9 +73,33 @@ static void get_path(char* fpath[PATH_MAX], const char *path)
 {
     strcpy((char*)fpath, ENCFS_DATA->mirror_dir);
     strncat((char*)fpath, path, PATH_MAX); //paths that are too long will break here
-
 }
 
+/* Similar to xattr.util.c */
+static void encfs_setxattr(char* fpath)
+{
+	char* tmpstr = NULL;
+
+	/* Need to append 'user.' prefix' before attribute name */
+	tmpstr = malloc(strlen(XATTR_NAME) + XATTR_USER_PREFIX_LEN + 1);
+	if(!tmpstr){
+	    perror("malloc of 'tmpstr' error");
+	    exit(EXIT_FAILURE);
+	}
+	strcpy(tmpstr, XATTR_USER_PREFIX);
+	strcat(tmpstr, XATTR_NAME);
+	/* Set attribute */
+	if(setxattr(fpath, tmpstr, XATTR_TRUEFLAG, strlen(XATTR_TRUEFLAG), 0)){
+	    perror("setxattr error");
+	    fprintf(stderr, "path  = %s\n", fpath);
+	    fprintf(stderr, "name  = %s\n", tmpstr);
+	    fprintf(stderr, "value = %s\n", XATTR_TRUEFLAG);
+	    fprintf(stderr, "size  = %zd\n", strlen(XATTR_TRUEFLAG));
+	    exit(EXIT_FAILURE);
+	}
+	/* Cleanup */
+	free(tmpstr);
+}
 
 static int xmp_getattr(const char *path, struct stat *stbuf)
 {
@@ -521,9 +554,10 @@ int main(int argc, char *argv[])
 	umask(0);
 
 	/* Check number of arguments */
-	if (argc != 4){
-		printf("Wrong number of arguments. Correct format is: ./pa4-encfs <Key Phrase> <Mirror Directory> <Mount Point>\n");
-		return 1;
+	if(argc < 4 || (argv[argc-2][0] == '-') || argv[argc-1][0] == '-'){
+	    fprintf(stderr, "usage: %s %s\n", argv[0],
+		    "<Key Phrase> <Mirror Directory> <Mount Point>");
+	    exit(EXIT_FAILURE);
 	}
 
 	/* Define struct to hold current state */
@@ -534,9 +568,16 @@ int main(int argc, char *argv[])
 		abort();
 	}
 
-	/* Get the real path and key phrase from command line argument and store them into the struct */
+	/* Get the correct path and key phrase from command line argument and store them into the struct */
 	encfs_data->mirror_dir = realpath(argv[2], NULL);
 	encfs_data->phrase = argv[1];
+
+	/* Adjust argvs and set new argc to argc - 2 (for FUSE, which only needs the mount point) */
+	/* -d comes after the mount point */
+	argv[1] = argv[argc-1];
+	argv[argc-1] = NULL;
+	argv[argc-2] = NULL;
+	argc -= 2;
 
 	return fuse_main(argc, argv, &xmp_oper, encfs_data);
 }
