@@ -49,7 +49,7 @@
 #include "aes-crypt.h"
 #endif
 
-/* Struct to hold path and key phrase */
+/* Struct to hold path and key phrase, used by FUSE to communicate between user and kernel space */
 struct encfs_state{
 	char* mirror_dir;
 	char* phrase;
@@ -60,22 +60,23 @@ struct encfs_state{
 
 
 /* Function to get the path to the desired directory to mirror */
-static void get_path(char cpath[PATH_MAX], const char *path)
+static void get_path(char* fpath[PATH_MAX], const char *path)
 {
-    strcpy(cpath, ENCFS_DATA->mirror_dir);
-    strncat(cpath, path, PATH_MAX); //ridiculously long paths will break here
+    strcpy((char*)fpath, ENCFS_DATA->mirror_dir);
+    strncat((char*)fpath, path, PATH_MAX); //paths that are too long will break here
 
 }
+
 
 static int xmp_getattr(const char *path, struct stat *stbuf)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 
 	int res;
 
-	res = lstat(cpath, stbuf);
+	res = lstat((char*)fpath, stbuf);
 	if (res == -1)
 		return -errno;
 
@@ -85,12 +86,12 @@ static int xmp_getattr(const char *path, struct stat *stbuf)
 static int xmp_access(const char *path, int mask)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = access(cpath, mask);
+	res = access((char*)fpath, mask);
 	if (res == -1)
 		return -errno;
 
@@ -100,12 +101,12 @@ static int xmp_access(const char *path, int mask)
 static int xmp_readlink(const char *path, char *buf, size_t size)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 
 	int res;
 
-	res = readlink(cpath, buf, size - 1);
+	res = readlink((char*)fpath, buf, size - 1);
 	if (res == -1)
 		return -errno;
 
@@ -118,8 +119,8 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		       off_t offset, struct fuse_file_info *fi)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	DIR *dp;
 	struct dirent *de;
@@ -127,7 +128,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	(void) offset;
 	(void) fi;
 
-	dp = opendir(cpath);
+	dp = opendir((char*)fpath);
 	if (dp == NULL)
 		return -errno;
 
@@ -147,8 +148,8 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 static int xmp_mknod(const char *path, mode_t mode, dev_t rdev)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
@@ -159,9 +160,9 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev)
 		if (res >= 0)
 			res = close(res);
 	} else if (S_ISFIFO(mode))
-		res = mkfifo(cpath, mode);
+		res = mkfifo((char*)fpath, mode);
 	else
-		res = mknod(cpath, mode, rdev);
+		res = mknod((char*)fpath, mode, rdev);
 	if (res == -1)
 		return -errno;
 
@@ -172,12 +173,12 @@ static int xmp_mkdir(const char *path, mode_t mode)
 {
 
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = mkdir(cpath, mode);
+	res = mkdir((char*)fpath, mode);
 	if (res == -1)
 		return -errno;
 
@@ -187,12 +188,12 @@ static int xmp_mkdir(const char *path, mode_t mode)
 static int xmp_unlink(const char *path)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = unlink(cpath);
+	res = unlink((char*)fpath);
 	if (res == -1)
 		return -errno;
 
@@ -202,12 +203,12 @@ static int xmp_unlink(const char *path)
 static int xmp_rmdir(const char *path)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = rmdir(cpath);
+	res = rmdir((char*)fpath);
 	if (res == -1)
 		return -errno;
 
@@ -250,12 +251,12 @@ static int xmp_link(const char *from, const char *to)
 static int xmp_chmod(const char *path, mode_t mode)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = chmod(cpath, mode);
+	res = chmod((char*)fpath, mode);
 	if (res == -1)
 		return -errno;
 
@@ -265,12 +266,12 @@ static int xmp_chmod(const char *path, mode_t mode)
 static int xmp_chown(const char *path, uid_t uid, gid_t gid)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = lchown(cpath, uid, gid);
+	res = lchown((char*)fpath, uid, gid);
 	if (res == -1)
 		return -errno;
 
@@ -280,12 +281,12 @@ static int xmp_chown(const char *path, uid_t uid, gid_t gid)
 static int xmp_truncate(const char *path, off_t size)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = truncate(cpath, size);
+	res = truncate((char*)fpath, size);
 	if (res == -1)
 		return -errno;
 
@@ -295,8 +296,8 @@ static int xmp_truncate(const char *path, off_t size)
 static int xmp_utimens(const char *path, const struct timespec ts[2])
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 	struct timeval tv[2];
@@ -306,7 +307,7 @@ static int xmp_utimens(const char *path, const struct timespec ts[2])
 	tv[1].tv_sec = ts[1].tv_sec;
 	tv[1].tv_usec = ts[1].tv_nsec / 1000;
 
-	res = utimes(cpath, tv);
+	res = utimes((char*)fpath, tv);
 	if (res == -1)
 		return -errno;
 
@@ -316,12 +317,12 @@ static int xmp_utimens(const char *path, const struct timespec ts[2])
 static int xmp_open(const char *path, struct fuse_file_info *fi)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = open(cpath, fi->flags);
+	res = open((char*)fpath, fi->flags);
 	if (res == -1)
 		return -errno;
 
@@ -333,14 +334,14 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
 		    struct fuse_file_info *fi)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int fd;
 	int res;
 
 	(void) fi;
-	fd = open(cpath, O_RDONLY);
+	fd = open((char*)fpath, O_RDONLY);
 	if (fd == -1)
 		return -errno;
 
@@ -356,14 +357,14 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 		     off_t offset, struct fuse_file_info *fi)
 {
 	/* Get the correct path */
-	// char* cpath[PATH_MAX];
-	// get_path(cpath, path);
+	// char* fpath[PATH_MAX];
+	// get_path(fpath, path);
 	
 	int fd;
 	int res;
 
 	(void) fi;
-	fd = open(path, O_WRONLY);
+	fd = open((char*)path, O_WRONLY);
 	if (fd == -1)
 		return -errno;
 
@@ -378,12 +379,12 @@ static int xmp_write(const char *path, const char *buf, size_t size,
 static int xmp_statfs(const char *path, struct statvfs *stbuf)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
 	int res;
 
-	res = statvfs(cpath, stbuf);
+	res = statvfs((char*)fpath, stbuf);
 	if (res == -1)
 		return -errno;
 
@@ -393,13 +394,13 @@ static int xmp_statfs(const char *path, struct statvfs *stbuf)
 static int xmp_create(const char* path, mode_t mode, struct fuse_file_info* fi) {
 	
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
     (void) fi;
 
     int res;
-    res = creat(cpath, mode);
+    res = creat((char*)fpath, mode);
     if(res == -1)
 	return -errno;
 
@@ -436,10 +437,10 @@ static int xmp_setxattr(const char *path, const char *name, const char *value,
 			size_t size, int flags)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
-	int res = lsetxattr(cpath, name, value, size, flags);
+	int res = lsetxattr((char*)fpath, name, value, size, flags);
 	if (res == -1)
 		return -errno;
 	return 0;
@@ -449,10 +450,10 @@ static int xmp_getxattr(const char *path, const char *name, char *value,
 			size_t size)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
-	int res = lgetxattr(cpath, name, value, size);
+	int res = lgetxattr((char*)fpath, name, value, size);
 	if (res == -1)
 		return -errno;
 	return res;
@@ -461,10 +462,10 @@ static int xmp_getxattr(const char *path, const char *name, char *value,
 static int xmp_listxattr(const char *path, char *list, size_t size)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
-	int res = llistxattr(cpath, list, size);
+	int res = llistxattr((char*)fpath, list, size);
 	if (res == -1)
 		return -errno;
 	return res;
@@ -473,10 +474,10 @@ static int xmp_listxattr(const char *path, char *list, size_t size)
 static int xmp_removexattr(const char *path, const char *name)
 {
 	/* Get the correct path */
-	char* cpath[PATH_MAX];
-	get_path(cpath, path);
+	char* fpath[PATH_MAX];
+	get_path(fpath, path);
 	
-	int res = lremovexattr(path, name);
+	int res = lremovexattr((char*)path, name);
 	if (res == -1)
 		return -errno;
 	return 0;
@@ -534,7 +535,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Get the real path and key phrase from command line argument and store them into the struct */
-	encfs_data->mirror_dir = realpath(argv[argc-2], NULL);
+	encfs_data->mirror_dir = realpath(argv[2], NULL);
 	encfs_data->phrase = argv[1];
 
 	return fuse_main(argc, argv, &xmp_oper, encfs_data);
