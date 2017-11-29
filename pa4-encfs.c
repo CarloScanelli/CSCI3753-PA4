@@ -4,8 +4,6 @@
 	CSCI 3753
 	Assignment 4
 
-	Received help from Derek Gorthy.
-
   FUSE: Filesystem in Userspace
   Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
 
